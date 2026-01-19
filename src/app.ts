@@ -2,6 +2,7 @@ import express, { NextFunction } from "express";
 import { Request, Response } from "express";
 import cors from "cors";
 import { config } from "./config/index";
+import { generateResponse } from "./utils";
 
 const app = express();
 app.use(cors({ origin: config.cors.origin }));
@@ -11,27 +12,32 @@ app.use(express.urlencoded({ extended: true }));
 app.get("/", (req: Request, res: Response) => {
   res.send({ ok: true });
 });
+///////////////////////////////////////////////////////////
 
-app.post("/", (req: Request, res: Response) => {
-  // "Alexa, ask server checker to ping my server"
-  const responseBody = {
-    version: "1.0",
-    response: {
-      outputSpeech: {
-        type: "PlainText",
-        text: "Yes, your server is online!",
-      },
-      shouldEndSession: true,
-    },
-  };
+const getIntent = (req: Request, res: Response, next: NextFunction) => {
+  const intent = req.body?.request?.intent?.name;
+  if (!intent) return res.status(400).json({ error: "Missing intent" });
+
+  (req as any).intent = intent;
+  next();
+};
+
+const intentHandlers: Record<string, () => string> = {
+  checkServer: () => "Yes, your server is online!",
+  checkPlane: () => "The plane status is on schedule.",
+  getWeather: () => "Today's weather is sunny!",
+};
+
+app.post("/", getIntent, (req: Request, res: Response) => {
+  const intent = (req as any).intent;
+  const handler = intentHandlers[intent];
+
+  const textResponse = handler ? handler() : "Sorry, I don't understand that intent.";
+  const responseBody = generateResponse(textResponse);
   res.json(responseBody);
 });
 
-app.post("/alexa", (req: Request, res: Response) => {
-  console.log("Alexa endpoint hit");
-  res.send({ ok: true });
-});
-
+///////////////////////////////////////////////////////////
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   console.error(err);
 
