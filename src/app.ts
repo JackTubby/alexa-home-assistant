@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import cors from "cors";
 import { config } from "./config/index";
 import { generateResponse } from "./utils";
+import Traffic from "./clients/mytomtom";
 
 const app = express();
 app.use(cors({ origin: config.cors.origin }));
@@ -22,17 +23,24 @@ const getIntent = (req: Request, res: Response, next: NextFunction) => {
   next();
 };
 
-const intentHandlers: Record<string, () => string> = {
+const intentHandlers: Record<string, () => any> = {
   checkServer: () => "Yes, your server is online!",
-  checkPlane: () => "The plane status is on schedule.",
-  getWeather: () => "Today's weather is sunny!",
+  checkTraffic: async () => {
+    const traffic = new Traffic();
+    // TODO: handle individual route checks and generic is traffic check
+    const checkTraffic = await traffic.checkRoutes([]);
+    console.log(checkTraffic);
+    return `Your journey to ${checkTraffic[0].name} will take ${checkTraffic[0].travelTimeMinutes} minutes.`;
+  },
 };
 
-app.post("/", getIntent, (req: Request, res: Response) => {
+app.post("/", getIntent, async (req: Request, res: Response) => {
   const intent = (req as any).intent;
   const handler = intentHandlers[intent];
 
-  const textResponse = handler ? handler() : "Sorry, I don't understand that intent.";
+  const textResponse = handler
+    ? await handler()
+    : "Sorry, I don't understand that intent.";
   const responseBody = generateResponse(textResponse);
   res.json(responseBody);
 });
